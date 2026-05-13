@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import anthropic
+import google.generativeai as genai
 import json
 
 app = FastAPI()
@@ -17,7 +17,8 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 class DMRequest(BaseModel):
     service: str
@@ -66,15 +67,9 @@ Format:
 ]"""
 
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2000,
-            messages=[{"role": "user", "content": prompt}]
-        )
+        response = model.generate_content(prompt)
+        raw = response.text.strip()
 
-        raw = response.content[0].text.strip()
-
-        # Strip markdown backticks if present
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
