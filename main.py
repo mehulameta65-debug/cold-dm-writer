@@ -2,8 +2,9 @@ import os
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import google.generativeai as genai
+from google import genai
 import json
 
 app = FastAPI()
@@ -17,8 +18,7 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-pro")
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 class DMRequest(BaseModel):
     service: str
@@ -29,7 +29,6 @@ class DMRequest(BaseModel):
 
 @app.get("/")
 def root():
-    from fastapi.responses import FileResponse
     return FileResponse("static/index.html")
 
 @app.post("/generate")
@@ -46,7 +45,7 @@ Generate cold DMs for the following context:
 - Tone: {req.tone}
 - Goal: {req.goal}
 
-Decide how many DMs to generate (between 5 and 10) based on the richness of the context provided. More specific context = more varied DMs.
+Decide how many DMs to generate (between 5 and 10) based on the richness of the context provided.
 
 Rules:
 - Each DM must feel human, not robotic
@@ -54,7 +53,7 @@ Rules:
 - Keep each DM under 150 words
 - Each DM should have a different angle/hook
 - Never start two DMs with the same word
-- Make them platform-appropriate ({req.platform} has its own culture)
+- Make them platform-appropriate
 
 Respond ONLY with a valid JSON array. No extra text, no markdown, no backticks.
 
@@ -67,7 +66,11 @@ Format:
 ]"""
 
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+
         raw = response.text.strip()
 
         if raw.startswith("```"):
